@@ -31,7 +31,7 @@ def get_sku_version(sku_path: pathlib.Path) -> float:
     changelog_path = sku_path / "CHANGELOG.md"
     with changelog_path.open("r") as f:
         txt = f.read()
-        version_match = re.search(r"^\# Sku \((\d+\.\d+)\)", txt)
+        version_match = re.search(r"^\# Sku \(((\d+\.\d+)|(\d+))\)", txt)
     if not version_match:
         print("Unable to determine Sku version")
         confirmed_exit(1)
@@ -45,7 +45,7 @@ def get_sku_version(sku_path: pathlib.Path) -> float:
 
 def fetch_sku_version() -> tuple[float, str]:
     rre = re.compile(
-        r"^https://github.com/Duugu/Sku/releases/download/r\d+\.\d+/Sku-r\d+\.\d+-.+\.zip$",
+        r"^https://github.com/Duugu/Sku/releases/download/r(\d+\.\d+)|(\d+)/Sku-r(\d+\.\d+)|(\d+)-.+\.zip$",
         re.I,
     )
     r = requests.get(SKU_URL)
@@ -56,7 +56,7 @@ def fetch_sku_version() -> tuple[float, str]:
         confirmed_exit(1)
     href = links[0].get("href")
     version_match = re.search(
-        r"^https://github.com/Duugu/Sku/releases/download/r\d+\.\d+/Sku-r(\d+\.\d+)-.+\.zip$",
+        r"^https://github.com/Duugu/Sku/releases/download/r(\d+\.\d+)|(\d+)/Sku-r((\d+\.\d+)|(\d+))-.+\.zip$",
         href,
     )
     if not version_match:
