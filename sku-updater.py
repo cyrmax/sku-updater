@@ -1,3 +1,4 @@
+from functools import total_ordering
 import os
 import pathlib
 import re
@@ -10,6 +11,37 @@ import requests
 
 
 SKU_URL = "https://duugu.github.io/Sku"
+
+
+@total_ordering
+class Version:
+    major: int
+    minor: int
+    def __init__(self, number: float):
+        components = str(number).split(".")
+        self.major = int(components[0])
+        self.minor = int(components[1]) if len(components) > 1 else 0
+    
+    def __eq__(self, other) -> bool:
+        return self.major == other.major and self.minor == other.minor
+    
+    def __lt__(self, other) -> bool:
+        if self.major != other.major:
+            return self.major < other.major
+        else:
+            return self.minor < other.minor
+
+    def __gt__(self, other) -> bool:
+        if self.major != other.major:
+            return self.major > other.major
+        else:
+            return self.minor > other.minor
+
+    def __str__(self) -> str:
+        return f"{self.major}.{self.minor}"
+
+    def __repr__(self):
+        return str(self)
 
 
 def confirmed_exit(code: int):
@@ -40,7 +72,7 @@ def get_sku_version(sku_path: pathlib.Path) -> float:
     except ValueError:
         print("Unable to determine Sku version")
         confirmed_exit(1)
-    return version
+    return Version(version)
 
 
 def fetch_sku_version() -> tuple[float, str]:
@@ -63,7 +95,7 @@ def fetch_sku_version() -> tuple[float, str]:
         print("Unable to fetch latest Sku version")
         confirmed_exit(1)
     version = float(version_match.group(1))
-    return (version, href)
+    return (Version(version), href)
 
 
 def update_sku(sku_info: tuple[float, str], sku_path: pathlib.Path):
