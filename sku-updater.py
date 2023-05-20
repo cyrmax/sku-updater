@@ -106,9 +106,16 @@ def update_sku(sku_info: tuple[float, str], sku_path: pathlib.Path):
     print("Downloading... ")
     with requests.get(url, stream=True) as r:
         r.raise_for_status()
+        downloaded_size = 0
+        total_size = int(r.headers["Content-Length"])
         with open(local_filename, "wb") as f:
             for chunk in r.iter_content(16384):
                 f.write(chunk)
+                f.flush()
+                downloaded_size += len(chunk)
+                print("\r", end="")
+                print(f"{downloaded_size / (1024 * 1024):.2f} MB of {total_size / (1024 * 1024):.2f} MB, {downloaded_size / total_size * 100:.2f}%", end="")
+    print("")
     print("Installing...")
     with zipfile.ZipFile(local_filename, "r") as zf:
         zf.extractall(str(sku_path.parent.resolve()))
