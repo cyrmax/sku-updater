@@ -17,8 +17,10 @@ SKU_URL = "https://duugu.github.io/Sku"
 class Version:
     major: int
     minor: int
-    def __init__(self, number: float):
-        components = str(number).split(".")
+    def __init__(self, version_string: str):
+        if not version_string:
+            raise ValueError("Empty version string")
+        components = version_string.split(".")
         self.major = int(components[0])
         self.minor = int(components[1]) if len(components) > 1 else 0
     
@@ -59,7 +61,7 @@ def find_wowc() -> str:
     return value[0]
 
 
-def get_sku_version(sku_path: pathlib.Path) -> float:
+def get_sku_version(sku_path: pathlib.Path) -> Version:
     changelog_path = sku_path / "CHANGELOG.md"
     with changelog_path.open("r") as f:
         txt = f.read()
@@ -68,14 +70,14 @@ def get_sku_version(sku_path: pathlib.Path) -> float:
         print("Unable to determine Sku version")
         confirmed_exit(1)
     try:
-        version = float(version_match.group(1))
+        version = Version(version_match.group(1))
     except ValueError:
         print("Unable to determine Sku version")
         confirmed_exit(1)
-    return Version(version)
+    return version
 
 
-def fetch_sku_version() -> tuple[float, str]:
+def fetch_sku_version() -> tuple[Version, str]:
     rre = re.compile(
         r"^https://github.com/Duugu/Sku/releases/download/r(\d+\.\d+)|(\d+)/Sku-r(\d+\.\d+)|(\d+)-.+\.zip$",
         re.I,
@@ -94,8 +96,8 @@ def fetch_sku_version() -> tuple[float, str]:
     if not version_match:
         print("Unable to fetch latest Sku version")
         confirmed_exit(1)
-    version = float(version_match.group(1))
-    return (Version(version), href)
+    version = Version(version_match.group(1))
+    return (version, href)
 
 
 def update_sku(sku_info: tuple[float, str], sku_path: pathlib.Path):
@@ -105,7 +107,7 @@ def update_sku(sku_info: tuple[float, str], sku_path: pathlib.Path):
     with requests.get(url, stream=True) as r:
         r.raise_for_status()
         with open(local_filename, "wb") as f:
-            for chunk in r.iter_content(4096):
+            for chunk in r.iter_content(16384):
                 f.write(chunk)
     print("Installing...")
     with zipfile.ZipFile(local_filename, "r") as zf:
