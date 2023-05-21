@@ -108,15 +108,15 @@ def update_sku(sku_info: tuple[float, str], sku_path: pathlib.Path):
         r.raise_for_status()
         downloaded_size = 0
         total_size = int(r.headers["Content-Length"])
+        print(f"{total_size / (1024 * 1024):.2f} MB will be downloaded")
         with open(local_filename, "wb") as f:
             for chunk in r.iter_content(16384):
                 f.write(chunk)
                 f.flush()
                 downloaded_size += len(chunk)
-                print("\r", end="")
-                print(f"{downloaded_size / (1024 * 1024):.2f} MB of {total_size / (1024 * 1024):.2f} MB, {downloaded_size / total_size * 100:.2f}%", end="")
-    print("")
+                os.system(f"title {downloaded_size / (1024 * 1024):.2f} MB of {total_size / (1024 * 1024):.2f} MB, {downloaded_size / total_size * 100:.2f}%. Sku Updater")
     print("Installing...")
+    os.system("title installing Sku. Sku Updater")
     with zipfile.ZipFile(local_filename, "r") as zf:
         zf.extractall(str(sku_path.parent.resolve()))
     print("Cleaning...")
@@ -124,6 +124,7 @@ def update_sku(sku_info: tuple[float, str], sku_path: pathlib.Path):
 
 
 def main():
+    os.system("title Sku Updater")
     print("Searching World of Warcraft Classic installation...")
     try:
         wowc_path = find_wowc()
