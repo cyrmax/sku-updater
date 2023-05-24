@@ -1,6 +1,9 @@
+from datetime import datetime as dt
 from functools import total_ordering
+import logging
 import os
 import pathlib
+import platform
 import re
 import sys
 import winreg
@@ -9,24 +12,32 @@ import zipfile
 from bs4 import BeautifulSoup as Soup
 import requests
 
+import build_info
+
 
 SKU_URL = "https://duugu.github.io/Sku"
+
+
+def handle_exception(exc_type, exc_value, tb):
+    logging.fatal("Uncaught exception occurred", exc_info=(exc_type, exc_value, tb))
+    sys.__excepthook__(exc_type, exc_value, tb)
 
 
 @total_ordering
 class Version:
     major: int
     minor: int
+
     def __init__(self, version_string: str):
         if not version_string:
             raise ValueError("Empty version string")
         components = version_string.split(".")
         self.major = int(components[0])
         self.minor = int(components[1]) if len(components) > 1 else 0
-    
+
     def __eq__(self, other) -> bool:
         return self.major == other.major and self.minor == other.minor
-    
+
     def __lt__(self, other) -> bool:
         if self.major != other.major:
             return self.major < other.major
@@ -78,29 +89,38 @@ def get_sku_version(sku_path: pathlib.Path) -> Version:
 
 
 def fetch_sku_version() -> tuple[Version, str]:
+    logging.debug("Fetching latest Sku version")
     rre = re.compile(
         r"^https://github.com/Duugu/Sku/releases/download/r(\d+\.\d+)|(\d+)/Sku-r(\d+\.\d+)|(\d+)-.+\.zip$",
         re.I,
     )
     r = requests.get(SKU_URL)
+    logging.debug(f"Fetched Sku page with response {r.status_code}")
     page = Soup(r.text, features="html.parser")
     links = page.findAll("a", attrs={"href": rre})
     if len(links) < 1:
         print("Unable to fetch latest Sku version info")
+        logging.error("Sku page does not contain valid links")
+        logging.debug(
+            f"Fetched Sku page content: \n{r.text}\nEnd of fetched page content."
+        )
         confirmed_exit(1)
     href = links[0].get("href")
+    logging.debug(f"Found href {href}")
     version_match = re.search(
         r"^https://github.com/Duugu/Sku/releases/download/r(\d+\.\d+)|(\d+)/Sku-r((\d+\.\d+)|(\d+))-.+\.zip$",
         href,
     )
     if not version_match:
         print("Unable to fetch latest Sku version")
+        logging.error("Found href does not match")
         confirmed_exit(1)
     version = Version(version_match.group(1))
     return (version, href)
 
 
 def update_sku(sku_info: tuple[float, str], sku_path: pathlib.Path):
+    logging.debug("Downloading and updating Sku")
     url = sku_info[1]
     local_filename = url.split("/")[-1]
     print("Downloading... ")
@@ -114,7 +134,9 @@ def update_sku(sku_info: tuple[float, str], sku_path: pathlib.Path):
                 f.write(chunk)
                 f.flush()
                 downloaded_size += len(chunk)
-                os.system(f"title {downloaded_size / (1024 * 1024):.2f} MB of {total_size / (1024 * 1024):.2f} MB, {downloaded_size / total_size * 100:.2f}%. Sku Updater")
+                os.system(
+                    f"title {downloaded_size / (1024 * 1024):.2f} MB of {total_size / (1024 * 1024):.2f} MB, {downloaded_size / total_size * 100:.2f}%. Sku Updater"
+                )
     print("Installing...")
     os.system("title installing Sku. Sku Updater")
     with zipfile.ZipFile(local_filename, "r") as zf:
@@ -124,24 +146,49 @@ def update_sku(sku_info: tuple[float, str], sku_path: pathlib.Path):
 
 
 def main():
+    logging.basicConfig(
+        filename="sku-updater.log",
+        encoding="utf-8",
+        level=logging.DEBUG,
+        format="%(levelname)s: %(message)s",
+    )
+    sys.excepthook = handle_exception
+    logging.info(f"Sku Updater started at {dt.now()}")
+    logging.info(f"Running on {platform.platform()}")
+    logging.info(f"Using Python version {sys.version}")
+    logging.info(f"Sku Updater version is {build_info.sku_updater_version}")
+    logging.debug(f"Sku Updater was build on {build_info.build_platform}")
+    logging.debug(
+        f"Sku Updater was build with Python version {build_info.build_python_version}"
+    )
+    logging.debug(
+        f"Sku was build with the following packages in build environment:\n{build_info.pip_freeze_output}"
+    )
     os.system("title Sku Updater")
     print("Searching World of Warcraft Classic installation...")
+    logging.debug("Searching World of Warcraft Classic installation...")
     try:
         wowc_path = find_wowc()
     except FileNotFoundError:
         print("Unable to find World of Warcraft Classic installation.")
+        logging.warning("Unable to find World of Warcraft Classic installation.")
         confirmed_exit(1)
     print(f"Found WoW Classic at path {wowc_path}")
+    logging.info(f"Found WoW Classic at path {wowc_path}")
     sku_path = pathlib.Path(wowc_path) / "Interface" / "AddOns" / "Sku"
     if not sku_path.exists():
         print("Couldn't find Sku folder. Check your installation")
+        logging.warning("Could not find Sku installation.")
         confirmed_exit(1)
     print(f"Found Sku at path {str(sku_path)}")
+    logging.info(f"Found Sku at path {str(sku_path)}")
     sku_version = get_sku_version(sku_path)
     print(f"Current Sku version is {sku_version}")
+    logging.info(f"Current Sku version is {sku_version}")
     print("Checking for updates...")
     info = fetch_sku_version()
     print(f"Latest available Sku version is {info[0]}")
+    logging.info(f"Latest available Sku version is {info[0]}")
     if info[0] <= sku_version:
         print("Your version of Sku is equal or newer than latest available. Exiting...")
         confirmed_exit(0)
@@ -150,16 +197,22 @@ def main():
     )
     if answer != "y":
         print("Ok, not updating.")
+        logging.warning(f'User declined update with answer "{answer}"')
         confirmed_exit(0)
     print("Updating...")
+    logging.debug("Updating Sku")
     update_sku(info, sku_path)
     print("Verifying update...")
+    logging.debug("Verifying update")
     new_version = get_sku_version(sku_path)
     if sku_version == new_version:
         print("Verification failed!")
+        logging.warning("Verification failed")
         confirmed_exit(1)
     print("Update complete!")
+    logging.debug("Update complete")
     print(f"Sku updated from {sku_version} to {new_version}")
+    logging.info(f"Sku updated from {sku_version} to {new_version}")
     confirmed_exit(0)
 
 
