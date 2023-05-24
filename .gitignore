@@ -5,3 +5,6 @@
 *.onefile-build/
 build/
 dist/
+*.zip
+*.log
+**/__pycache__
