@@ -9,5 +9,5 @@ if "%CI%" == "true" (
     )
 )
 
-python3.11 prepare_build_info.py
-python3.11 -m nuitka --standalone --onefile --prefer-source-code --assume-yes-for-downloads --remove-output --lto=yes --company-name=Cyrmax --product-name=Sku_Updater --file-version=%curver% --product-version=%curver% --file-description="A console program to update your installation of Sku for WoW Classic" --copyright="Made by Cyrmax in 2022. MIT license" sku-updater.py
+python prepare_build_info.py
+python -m nuitka --standalone --onefile --prefer-source-code --assume-yes-for-downloads --remove-output --lto=yes --company-name=Cyrmax --product-name=Sku_Updater --file-version=%curver% --product-version=%curver% --file-description="A console program to update your installation of Sku for WoW Classic" --copyright="Made by Cyrmax in 2022. MIT license" sku-updater.py
