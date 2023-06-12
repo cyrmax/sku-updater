@@ -1,3 +1,4 @@
+from argparse import ArgumentParser
 from datetime import datetime as dt
 from functools import total_ordering
 import logging
@@ -153,6 +154,19 @@ def main():
         format="%(levelname)s: %(message)s",
     )
     sys.excepthook = handle_exception
+    parser = ArgumentParser()
+    parser.add_argument(
+        "-f",
+        "--force",
+        help="Force update even if local version is equal or never than latest available. Mainly used for testing purposes.",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--diagnostic",
+        help="Just save diagnostic information to log file and exit without updating.",
+        action="store_true",
+    )
+    args = parser.parse_args()
     logging.info(f"Sku Updater started at {dt.now()}")
     logging.info(f"Running on {platform.platform()}")
     logging.info(f"Using Python version {sys.version}")
@@ -164,7 +178,13 @@ def main():
     logging.debug(
         f"Sku was build with the following packages in build environment:\n{build_info.pip_freeze_output}"
     )
+    logging.info(f"Command line parameters: {args}")
     os.system("title Sku Updater")
+    if args.diagnostic:
+        print(
+            "Diagnostic info saved to sku-updater.log file. If necessary, send it to the developer."
+        )
+        confirmed_exit(0)
     print("Searching World of Warcraft Classic installation...")
     logging.debug("Searching World of Warcraft Classic installation...")
     try:
@@ -189,7 +209,7 @@ def main():
     info = fetch_sku_version()
     print(f"Latest available Sku version is {info[0]}")
     logging.info(f"Latest available Sku version is {info[0]}")
-    if info[0] <= sku_version:
+    if info[0] <= sku_version and not args.force:
         print("Your version of Sku is equal or newer than latest available. Exiting...")
         confirmed_exit(0)
     answer = input(
