@@ -15,7 +15,6 @@ import requests
 
 import build_info
 
-
 SKU_URL = "https://duugu.github.io/Sku"
 
 
@@ -70,7 +69,8 @@ def find_wowc() -> str:
         r"SOFTWARE\WOW6432Node\Blizzard Entertainment\World of Warcraft",
     )
     value = winreg.QueryValueEx(key, "InstallPath")
-    return value[0]
+    path = pathlib.Path(value[0]).parent / "_classic_"
+    return str(path)
 
 
 def get_sku_version(sku_path: pathlib.Path) -> Version:
@@ -196,6 +196,7 @@ def main():
     print(f"Found WoW Classic at path {wowc_path}")
     logging.info(f"Found WoW Classic at path {wowc_path}")
     sku_path = pathlib.Path(wowc_path) / "Interface" / "AddOns" / "Sku"
+    logging.debug(f"Expecting Sku installation at path {sku_path}")
     if not sku_path.exists():
         print("Couldn't find Sku folder. Check your installation")
         logging.warning("Could not find Sku installation.")
