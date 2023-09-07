@@ -92,7 +92,7 @@ def get_sku_version(sku_path: pathlib.Path) -> Version:
 def fetch_sku_version() -> tuple[Version, str]:
     logging.debug("Fetching latest Sku version")
     rre = re.compile(
-        r"^https://github.com/Duugu/Sku/releases/download/r(\d+\.\d+)|(\d+)/Sku-r(\d+\.\d+)|(\d+)-.+\.zip$",
+        r"^https://github.com/Duugu/Sku/releases/download/r([\d\.]+)/Sku-r([\d\.]+)-.+\.zip$",
         re.I,
     )
     r = requests.get(SKU_URL)
