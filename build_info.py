@@ -1,8 +1,10 @@
 # This file contains all necessary debug information about the build process.
 # This file should be regenerated directly before build process for to contain actual info about build environment.
-sku_updater_version = "noversion"
+sku_updater_version = "34.26.2"
 build_platform = "Windows-10-10.0.22621-SP0"
-build_python_version = "3.11.1 (tags/v3.11.1:a7a450f, Dec  6 2022, 19:58:39) [MSC v.1934 64 bit (AMD64)]"
+build_python_version = (
+    "3.11.1 (tags/v3.11.1:a7a450f, Dec  6 2022, 19:58:39) [MSC v.1934 64 bit (AMD64)]"
+)
 pip_freeze_output = """
 beautifulsoup4==4.12.2
 black==22.10.0

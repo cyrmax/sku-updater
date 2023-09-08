@@ -19,7 +19,7 @@ with open("build_info.py", "w", encoding="utf8") as f:
         "# This file should be regenerated directly before build process for to contain actual info about build environment.\n"
     )
     f.write(
-        f'sku_updater_version = "{os.environ.get("GITHUB_REF_NAME", "noversion")}"\n'
+        f'sku_updater_version = "{os.environ.get("GITHUB_REF_NAME", sys.argv[1])}"\n'
     )
     f.write(f'build_platform = "{platform.platform()}"\n')
     f.write(f'build_python_version = "{sys.version}"\n')

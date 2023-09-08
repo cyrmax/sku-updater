@@ -17,6 +17,7 @@ import requests
 import build_info
 
 SKU_URL = "https://api.github.com/repos/Duugu/Sku/releases/latest"
+SKU_UPDATER_URL = "https://api.github.com/repos/cyrmax/sku-updater/releases/latest"
 TITLE_UPDATE_TIMESTAMP = time()
 
 
@@ -39,6 +40,8 @@ def handle_exception(exc_type, exc_value, tb):
 class Version:
     major: int
     minor: int
+    subminor: int
+    patch: int
 
     def __init__(self, version_string: str):
         if not version_string:
@@ -46,24 +49,39 @@ class Version:
         components = version_string.split(".")
         self.major = int(components[0])
         self.minor = int(components[1]) if len(components) > 1 else 0
+        self.subminor = int(components[2]) if len(components) > 2 else 0
+        self.patch = int(components[3]) if len(components) > 3 else 0
 
     def __eq__(self, other) -> bool:
-        return self.major == other.major and self.minor == other.minor
+        return (
+            self.major == other.major
+            and self.minor == other.minor
+            and self.subminor == other.subminor
+            and self.patch == other.patch
+        )
 
     def __lt__(self, other) -> bool:
         if self.major != other.major:
             return self.major < other.major
-        else:
+        elif self.minor != other.minor:
             return self.minor < other.minor
+        elif self.subminor != other.subminor:
+            return self.subminor < other.subminor
+        else:
+            return self.patch < other.patch
 
     def __gt__(self, other) -> bool:
         if self.major != other.major:
             return self.major > other.major
-        else:
+        elif self.minor != other.minor:
             return self.minor > other.minor
+        elif self.subminor != other.subminor:
+            return self.subminor > other.subminor
+        else:
+            return self.patch > other.patch
 
     def __str__(self) -> str:
-        return f"{self.major}.{self.minor}"
+        return f"{self.major}.{self.minor}.{self.subminor}.{self.patch}"
 
     def __repr__(self):
         return str(self)
@@ -73,6 +91,59 @@ def confirmed_exit(code: int):
     print("Press enter to exit program")
     input()
     sys.exit(code)
+
+
+def self_update() -> bool:
+    logging.info("Checking for Sku Updater updates")
+    current_version = Version(build_info.sku_updater_version)
+    r = requests.get(SKU_UPDATER_URL)
+    if r.status_code != 200:
+        print("Unable to fetch latest Sku Updater version")
+        logging.error("Unable to fetch latest Sku Updater version")
+        confirmed_exit(1)
+    data = json.loads(r.text)
+    latest_version = Version(data["tag_name"])
+    if current_version >= latest_version:
+        return False
+    else:
+        print(f"New version of Sku Updater is available: {latest_version}")
+        print("Downloading latest Sku Updater")
+        logging.info(f"Downloading latest Sku Updater {latest_version}")
+        url = None
+        for asset in data["assets"]:
+            if asset["name"] == "sku-updater.zip":
+                url = asset["browser_download_url"]
+                break
+        if url is None:
+            print("Unable to download latest Sku Updater")
+            logging.error("Unable to download latest Sku Updater")
+            confirmed_exit(1)
+        local_filename = url.split("/")[-1]
+        with requests.get(url, stream=True) as r:
+            r.raise_for_status()
+            downloaded_size = 0
+            total_size = int(r.headers["Content-Length"])
+            print(f"{total_size / (1024 * 1024):.2f} MB will be downloaded")
+            with open(local_filename, "wb") as f:
+                for chunk in r.iter_content(16384):
+                    f.write(chunk)
+                    downloaded_size += len(chunk)
+                    update_title(downloaded_size, total_size)
+    print("Unpacking Sku Updater")
+    logging.info("Unpacking Sku Updater")
+    os.makedirs("tmp", exist_ok=True)
+    with zipfile.ZipFile(local_filename, "r") as zip_ref:
+        zip_ref.extractall("tmp")
+    os.remove(local_filename)
+    print("Restarting")
+    logging.info("Creating temporary bat file")
+    with open("sku-updater-restart.bat", "w") as f:
+        f.write("@echo off\r\n")
+        f.write("ping -n 5 localhost > nul\r\n")
+        f.write("del sku-updater.exe\r\n")
+        f.write("copy tmp\\sku-updater.exe sku-updater.exe\r\n")
+        f.write("start sku-updater.exe\r\n")
+    return True
 
 
 def find_wowc() -> str:
@@ -172,6 +243,9 @@ def main():
         help="Just save diagnostic information to log file and exit without updating.",
         action="store_true",
     )
+    parser.add_argument(
+        "-s", "--skip-update", help="Skip Sku Updater update", action="store_true"
+    )
     args = parser.parse_args()
     logging.info(f"Sku Updater started at {dt.now()}")
     logging.info(f"Running on {platform.platform()}")
@@ -191,6 +265,18 @@ def main():
             "Diagnostic info saved to sku-updater.log file. If necessary, send it to the developer."
         )
         confirmed_exit(0)
+    try:
+        os.remove("sku-updater-restart.bat")
+        os.remove("tmp\\sku-updater.exe")
+        os.removedirs("tmp")
+    except FileNotFoundError:
+        pass
+    if args.skip_update:
+        print("Skipping Sku Updater update")
+    else:
+        if self_update():
+            os.startfile("sku-updater-restart.bat")
+            sys.exit(0)
     print("Searching World of Warcraft Classic installation...")
     logging.debug("Searching World of Warcraft Classic installation...")
     try:
