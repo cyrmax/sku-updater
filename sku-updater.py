@@ -1,21 +1,33 @@
 from argparse import ArgumentParser
 from datetime import datetime as dt
 from functools import total_ordering
+import json
 import logging
 import os
 import pathlib
 import platform
 import re
 import sys
+from time import time
 import winreg
 import zipfile
 
-from bs4 import BeautifulSoup as Soup
 import requests
 
 import build_info
 
-SKU_URL = "https://duugu.github.io/Sku"
+SKU_URL = "https://api.github.com/repos/Duugu/Sku/releases/latest"
+TITLE_UPDATE_TIMESTAMP = time()
+
+
+def update_title(downloaded_size: int, total_size: int):
+    global TITLE_UPDATE_TIMESTAMP
+    if TITLE_UPDATE_TIMESTAMP + 1 >= time():
+        return
+    os.system(
+        f"title {downloaded_size / (1024 * 1024):.2f} MB of {total_size / (1024 * 1024):.2f} MB, {downloaded_size / total_size * 100:.2f}%. Sku Updater"
+    )
+    TITLE_UPDATE_TIMESTAMP = time()
 
 
 def handle_exception(exc_type, exc_value, tb):
@@ -91,33 +103,29 @@ def get_sku_version(sku_path: pathlib.Path) -> Version:
 
 def fetch_sku_version() -> tuple[Version, str]:
     logging.debug("Fetching latest Sku version")
-    rre = re.compile(
-        r"^https://github.com/Duugu/Sku/releases/download/r([\d\.]+)/Sku-r([\d\.]+)-.+\.zip$",
-        re.I,
-    )
     r = requests.get(SKU_URL)
-    logging.debug(f"Fetched Sku page with response {r.status_code}")
-    page = Soup(r.text, features="html.parser")
-    links = page.findAll("a", attrs={"href": rre})
-    if len(links) < 1:
-        print("Unable to fetch latest Sku version info")
-        logging.error("Sku page does not contain valid links")
-        logging.debug(
-            f"Fetched Sku page content: \n{r.text}\nEnd of fetched page content."
-        )
-        confirmed_exit(1)
-    href = links[0].get("href")
-    logging.debug(f"Found href {href}")
-    version_match = re.search(
-        r"^https://github.com/Duugu/Sku/releases/download/r(\d+\.\d+)|(\d+)/Sku-r((\d+\.\d+)|(\d+))-.+\.zip$",
-        href,
-    )
-    if not version_match:
+    logging.debug(f"Fetched Sku latest release info with response {r.status_code}")
+    if r.status_code != 200:
         print("Unable to fetch latest Sku version")
-        logging.error("Found href does not match")
+        confirmed_exit(1)
+    data = json.loads(r.text)
+    version_re = re.compile(r"^r([\d\.]+)$")
+    version_match = version_re.search(data["tag_name"])
+    if not version_match:
+        print("Unable to determine latest Sku version")
+        logging.error("Unable to determine latest Sku version")
         confirmed_exit(1)
     version = Version(version_match.group(1))
-    return (version, href)
+    asset_url = None
+    for asset in data["assets"]:
+        if asset["name"].endswith(".zip"):
+            asset_url = asset["browser_download_url"]
+            break
+    if asset_url is None:
+        print("Unable to determine latest Sku version")
+        logging.error("Unable to determine latest Sku version")
+        confirmed_exit(1)
+    return (version, asset_url)
 
 
 def update_sku(sku_info: tuple[float, str], sku_path: pathlib.Path):
@@ -135,9 +143,7 @@ def update_sku(sku_info: tuple[float, str], sku_path: pathlib.Path):
                 f.write(chunk)
                 f.flush()
                 downloaded_size += len(chunk)
-                os.system(
-                    f"title {downloaded_size / (1024 * 1024):.2f} MB of {total_size / (1024 * 1024):.2f} MB, {downloaded_size / total_size * 100:.2f}%. Sku Updater"
-                )
+                update_title(downloaded_size, total_size)
     print("Installing...")
     os.system("title installing Sku. Sku Updater")
     with zipfile.ZipFile(local_filename, "r") as zf:
